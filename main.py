@@ -154,6 +154,7 @@ def run_full_pipeline():
     if not scraper.login():
         print("\n❌ Gagal login Edlink. Proses dihentikan.")
         scraper.stop()
+        sys.exit(1) # Lapor ke GitHub kalau ini error agar screenshot di-upload
         return
         
     courses = scraper.get_courses()
