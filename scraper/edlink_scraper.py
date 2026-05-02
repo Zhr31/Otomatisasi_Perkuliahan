@@ -47,21 +47,31 @@ class EdlinkScraper:
     def login(self):
         try:
             print("\n[LOGIN] Membuka Edlink...")
-            self.page.goto(f"{EDLINK_BASE_URL}/login", wait_until="networkidle")
-            time.sleep(2)
+            self.page.goto(f"{EDLINK_BASE_URL}/login", wait_until="domcontentloaded", timeout=60000)
+            
+            # Tunggu kotak email muncul (penting untuk GitHub Actions)
+            print("  Menunggu form login...")
+            try:
+                self.page.wait_for_selector('input[type="email"], input[name="email"]', timeout=30000)
+            except Exception:
+                print("  ⚠️ Timeout menunggu form login, mencoba paksa...")
 
             # Isi email
             email_input = self.page.query_selector('input[type="email"], input[name="email"], input[type="text"]')
             if email_input:
                 email_input.fill(EDLINK_EMAIL)
+                print("  Email diisi")
             else:
                 print("  GAGAL: Field email tidak ditemukan")
+                # Ambil screenshot untuk debug jika gagal di GitHub
+                self.page.screenshot(path="login_error.png")
                 return False
 
             # Isi password
             pass_input = self.page.query_selector('input[type="password"]')
             if pass_input:
                 pass_input.fill(EDLINK_PASSWORD)
+                print("  Password diisi")
             else:
                 print("  GAGAL: Field password tidak ditemukan")
                 return False
@@ -70,7 +80,9 @@ class EdlinkScraper:
             btn = self.page.query_selector('button[type="submit"], button:has-text("Masuk"), button:has-text("Login")')
             if btn:
                 btn.click()
+                print("  Tombol login diklik")
 
+            # Tunggu proses login selesai
             time.sleep(5)
             self.page.wait_for_load_state("networkidle")
 
@@ -112,20 +124,24 @@ class EdlinkScraper:
             except Exception:
                 pass
 
-            # Tunggu elemen muncul untuk menghindari execution context destroyed
+            # Tunggu elemen muncul
             try:
-                self.page.wait_for_selector('a[href^="/panel/classes/"]', timeout=15000)
+                self.page.wait_for_selector('a[href^="/panel/classes/"]', timeout=20000)
             except Exception:
                 pass
+
+            # SCROLL: Supaya mata kuliah yang di bawah (Kalkulus, dll) muncul
+            print("  Scrolling untuk memuat semua kelas...")
+            for _ in range(5):
+                self.page.mouse.wheel(0, 1000)
+                time.sleep(1)
                 
             # Selector: card kelas akademik - sesuai HTML Edlink UNSIA
             cards = []
             for _ in range(3):  # Coba sampai 3 kali
                 try:
-                    cards = self.page.query_selector_all('a[href^="/panel/classes/"].col-12.col-sm-6')
-                    if not cards:
-                        cards = self.page.query_selector_all('a[href^="/panel/classes/"]')
-                        cards = [c for c in cards if c.get_attribute("href", "").count("/") <= 4]
+                    # Ambil semua card kelas
+                    cards = self.page.query_selector_all('a[href^="/panel/classes/"]')
                     if cards:
                         break
                 except Exception as e:
@@ -284,19 +300,44 @@ class EdlinkScraper:
             self.page.goto(item_url, wait_until="networkidle")
             time.sleep(2)
 
-            # Cari link download file
+            # Cari link download file dengan selector lebih luas
             download_links = self.page.query_selector_all(
                 'a[href*="download"], a[href*=".pdf"], a[href*=".doc"], '
-                'a[href*=".ppt"], a[href*="storage.googleapis.com"], '
-                'a[download], button:has-text("Download"), button:has-text("Unduh")'
+                'a[href*=".ppt"], a[href*=".docx"], a[href*=".pptx"], '
+                'a[href*="storage.googleapis.com"], a[href*="drive.google.com"], '
+                'a[download], .file-item a, .attachment-item a'
             )
 
+            # Cari tombol yang mungkin berisi download link
+            buttons = self.page.query_selector_all('button:has-text("Download"), button:has-text("Unduh"), .btn-download')
+            
             files = []
+            seen_urls = set()
+
+            # Process links
             for link in download_links:
-                href = link.get_attribute("href") or ""
-                text = link.inner_text().strip()
-                if href:
-                    files.append({"url": href, "name": text or href.split("/")[-1]})
+                try:
+                    href = link.get_attribute("href") or ""
+                    if href and href not in seen_urls:
+                        text = link.inner_text().strip()
+                        files.append({"url": href, "name": text or href.split("/")[-1]})
+                        seen_urls.add(href)
+                except: continue
+
+            # Process buttons (if they have data-url or similar)
+            for btn in buttons:
+                try:
+                    # Kadang link ada di attribute data-url
+                    for attr in ["data-url", "data-href", "onclick"]:
+                        val = btn.get_attribute(attr)
+                        if val and "http" in val:
+                            match = re.search(r'(https?://[^\s\'"]+)', val)
+                            if match:
+                                url = match.group(1)
+                                if url not in seen_urls:
+                                    files.append({"url": url, "name": btn.inner_text().strip() or "Download"})
+                                    seen_urls.add(url)
+                except: continue
 
             # Cari juga embedded content (YouTube, dll)
             youtube_frames = self.page.query_selector_all('iframe[src*="youtube"], iframe[src*="youtu.be"]')
