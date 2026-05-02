@@ -53,8 +53,11 @@ class EdlinkScraper:
         try:
             print("\n[LOGIN] Membuka Edlink via Halaman Kelas...")
             # Langsung ke classes, nanti otomatis diredirect ke login jika belum masuk
-            self.page.goto(f"{EDLINK_BASE_URL}/classes", wait_until="domcontentloaded", timeout=60000)
-            time.sleep(3)
+            self.page.goto(f"{EDLINK_BASE_URL}/classes", wait_until="load", timeout=90000)
+            
+            # Tunggu logo "Loading page..." hilang
+            print("  Menunggu halaman selesai loading...")
+            time.sleep(10) # Beri waktu extra untuk loading spinner
 
             # Cek apakah kena blokir "Tidak terhubung ke internet"
             if self.page.query_selector('text="Sepertinya Anda tidak terhubung ke internet"'):
@@ -62,17 +65,18 @@ class EdlinkScraper:
                 btn_reload = self.page.query_selector('button:has-text("Muat Ulang")')
                 if btn_reload:
                     btn_reload.click()
-                    time.sleep(5)
+                    time.sleep(10)
             
-            # Cek apakah kita diredirect ke halaman login
-            if "login" in self.page.url.lower() or self.page.query_selector('input[type="email"]'):
-                print("  Mengisi kredensial login...")
-                try:
-                    self.page.wait_for_selector('input[type="email"], input[name="email"]', timeout=30000)
-                except Exception:
-                    print("  ⚠️ Form login tidak muncul, mencoba paksa...")
-                    self.page.reload()
-                    time.sleep(5)
+            # Cari form login dengan sabar
+            print("  Mencari kotak login...")
+            try:
+                # Tunggu salah satu selector login muncul
+                self.page.wait_for_selector('input[type="email"], input[name="email"], .login-form', timeout=45000)
+                print("  Kotak login ditemukan!")
+            except Exception:
+                print("  ⚠️ Kotak login belum muncul, mencoba refresh terakhir...")
+                self.page.reload()
+                time.sleep(10)
 
             # Isi email
             email_input = self.page.query_selector('input[type="email"], input[name="email"], input[type="text"]')
