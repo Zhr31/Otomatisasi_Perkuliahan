@@ -69,7 +69,7 @@ class EdlinkScraper:
             else:
                 print("  GAGAL: Field email tidak ditemukan")
                 # Ambil screenshot untuk debug jika gagal di GitHub
-                self.page.screenshot(path="login_error.png")
+                self.page.screenshot(path="data/login_error.png")
                 return False
 
             # Isi password
