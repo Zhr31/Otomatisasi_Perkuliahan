@@ -1,0 +1,22 @@
+# Credentials - JANGAN COMMIT!
+.env
+credentials.json
+token.json
+ticktick_token.json
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Downloads temp
+data/downloads/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini
