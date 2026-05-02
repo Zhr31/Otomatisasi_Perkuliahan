@@ -46,15 +46,20 @@ class EdlinkScraper:
 
     def login(self):
         try:
-            print("\n[LOGIN] Membuka Edlink...")
-            self.page.goto(f"{EDLINK_BASE_URL}/login", wait_until="domcontentloaded", timeout=60000)
-            
-            # Tunggu kotak email muncul (penting untuk GitHub Actions)
-            print("  Menunggu form login...")
-            try:
-                self.page.wait_for_selector('input[type="email"], input[name="email"]', timeout=30000)
-            except Exception:
-                print("  ⚠️ Timeout menunggu form login, mencoba paksa...")
+            print("\n[LOGIN] Membuka Edlink via Halaman Kelas...")
+            # Langsung ke classes, nanti otomatis diredirect ke login jika belum masuk
+            self.page.goto(f"{EDLINK_BASE_URL}/classes", wait_until="domcontentloaded", timeout=60000)
+            time.sleep(3)
+
+            # Cek apakah kita diredirect ke halaman login
+            if "login" in self.page.url.lower():
+                print("  Terdeteksi halaman login, mengisi kredensial...")
+                try:
+                    self.page.wait_for_selector('input[type="email"], input[name="email"]', timeout=30000)
+                except Exception:
+                    print("  ⚠️ Form login tidak muncul, mencoba refresh...")
+                    self.page.reload()
+                    self.page.wait_for_selector('input[type="email"]', timeout=20000)
 
             # Isi email
             email_input = self.page.query_selector('input[type="email"], input[name="email"], input[type="text"]')
@@ -106,23 +111,15 @@ class EdlinkScraper:
             return False
 
     def get_courses(self):
-        """Ambil daftar 7 mata kuliah dari halaman utama Edlink"""
+        """Ambil daftar 7 mata kuliah dari Kelas Akademik"""
         try:
-            print("\n[COURSES] Mengambil daftar mata kuliah...")
+            print("\n[COURSES] Mengambil daftar mata kuliah (Kelas Akademik)...")
 
-            # Pastikan di halaman classes
-            if "/classes" not in self.page.url:
-                self.page.goto(f"{EDLINK_BASE_URL}/classes?tab=1", wait_until="networkidle")
-                time.sleep(3)
-
-            # Tutup popup jika ada
-            try:
-                close_btn = self.page.query_selector('button:has-text("Tutup")')
-                if close_btn and close_btn.is_visible():
-                    close_btn.click()
-                    time.sleep(1)
-            except Exception:
-                pass
+            # Pastikan di halaman classes tab=1 (Kelas Akademik)
+            target_url = f"{EDLINK_BASE_URL}/classes?tab=1"
+            if self.page.url != target_url:
+                self.page.goto(target_url, wait_until="networkidle")
+                time.sleep(5)
 
             # Tunggu elemen muncul
             try:
