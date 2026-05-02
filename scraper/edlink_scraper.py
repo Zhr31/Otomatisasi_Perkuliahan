@@ -31,11 +31,16 @@ class EdlinkScraper:
         self.browser = self.playwright.chromium.launch(
             headless=self.headless, slow_mo=300
         )
+        # Penyamaran agar tidak disangka robot
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        
         context = self.browser.new_context(
-            viewport={"width": 1280, "height": 800}, accept_downloads=True
+            viewport={"width": 1280, "height": 800}, 
+            accept_downloads=True,
+            user_agent=user_agent
         )
         self.page = context.new_page()
-        print("  Browser dimulai")
+        print("  Browser dimulai (dengan penyamaran)")
 
     def stop(self):
         if self.browser:
@@ -51,15 +56,23 @@ class EdlinkScraper:
             self.page.goto(f"{EDLINK_BASE_URL}/classes", wait_until="domcontentloaded", timeout=60000)
             time.sleep(3)
 
+            # Cek apakah kena blokir "Tidak terhubung ke internet"
+            if self.page.query_selector('text="Sepertinya Anda tidak terhubung ke internet"'):
+                print("  ⚠️ Edlink mendeteksi robot! Mencoba Muat Ulang...")
+                btn_reload = self.page.query_selector('button:has-text("Muat Ulang")')
+                if btn_reload:
+                    btn_reload.click()
+                    time.sleep(5)
+            
             # Cek apakah kita diredirect ke halaman login
-            if "login" in self.page.url.lower():
-                print("  Terdeteksi halaman login, mengisi kredensial...")
+            if "login" in self.page.url.lower() or self.page.query_selector('input[type="email"]'):
+                print("  Mengisi kredensial login...")
                 try:
                     self.page.wait_for_selector('input[type="email"], input[name="email"]', timeout=30000)
                 except Exception:
-                    print("  ⚠️ Form login tidak muncul, mencoba refresh...")
+                    print("  ⚠️ Form login tidak muncul, mencoba paksa...")
                     self.page.reload()
-                    self.page.wait_for_selector('input[type="email"]', timeout=20000)
+                    time.sleep(5)
 
             # Isi email
             email_input = self.page.query_selector('input[type="email"], input[name="email"], input[type="text"]')
