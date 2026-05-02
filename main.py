@@ -145,7 +145,10 @@ def run_full_pipeline():
     print("=" * 40)
     
     from scraper.edlink_scraper import EdlinkScraper
-    scraper = EdlinkScraper(headless=False)  # Visible untuk pertama kali
+    # Gunakan headless=True jika di GitHub Actions (CI), atau False jika lokal (untuk debug)
+    import os
+    is_ci = os.getenv("GITHUB_ACTIONS") == "true"
+    scraper = EdlinkScraper(headless=is_ci or True) 
     scraper.start()
     
     if not scraper.login():
